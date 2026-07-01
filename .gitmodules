@@ -1,3 +1,9 @@
 [submodule "alsh-spec"]
 	path = alsh-spec
 	url = https://github.com/alikrv/alsh-spec
+[submodule "alsh-std"]
+	path = alsh-std
+	url = https://github.com/alikrv/alsh-std
+[submodule "common_utils"]
+	path = common_utils
+	url = https://github.com/texturawasd/common_utils
