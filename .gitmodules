@@ -1,0 +1,3 @@
+[submodule "alsh-spec"]
+	path = alsh-spec
+	url = https://github.com/alikrv/alsh-spec
