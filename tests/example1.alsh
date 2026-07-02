@@ -1,0 +1,15 @@
+@define say_hello std::println("heyyyyy")
+
+@include includeme.alsh
+
+@stdlib
+
+@main
+function this_is_the_main_function() int {
+    c::puts("Hello world from C")
+    println("Hello world from the standard library")
+    say_hello
+
+    defined_one
+    return 0
+}

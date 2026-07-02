@@ -20,6 +20,6 @@ alshpp [infile] > [outfile]
 - `@noffi` - this one gets rid of FFI calls (simply comment out all function calls with the `c::` or `ffi::` prefixes)
 - `!global` - this one has to be followed by a variable declaration, and makes said variable global, meaning it can be used from other scopes!
 
-see [alsh-std/stdlib](alsh-std/stdlib.md) for the standard library summary.
+see [alsh-std/stdlib](./alsh-std/stdlib.md) for the standard library summary.
 
-see [alsh-std/raw_list.txt](alsh-std/raw_list.txt) for the list of standard library functions `@stdlib` has to loop through
+see [alsh-std/raw_list.txt](./alsh-std/raw_list.txt) for the list of standard library functions `@stdlib` has to loop through
