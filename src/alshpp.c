@@ -3,91 +3,21 @@
 #include "common_utils/path_utils.h"
 #include "common_utils/simple_strings.h"
 
+#include "directives.c"
+
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define STD_LIST_PATH "alsh-std/raw_list.txt"
-static str *STD_FUNCTION_NAMES = NULL;
-static size_t STD_FUNCTION_COUNT = 0;
 
-static void load_std_function_list(void) {
-    if (STD_FUNCTION_NAMES || STD_FUNCTION_COUNT > 0) {
-        return;
-    }
 
-    str raw = read_entire_file(STD_LIST_PATH);
-    if (raw.len == 0) {
-        str_destroy(&raw);
-        return;
-    }
 
-    size_t count = 0;
-    str *items = str_split(&raw, "\n", &count);
-    str_destroy(&raw);
-    if (!items || count == 0) {
-        return;
-    }
 
-    while (count > 0 && items[count - 1].len == 0) {
-        str_destroy(&items[count - 1]);
-        count--;
-    }
 
-    STD_FUNCTION_NAMES = items;
-    STD_FUNCTION_COUNT = count;
-}
 
-typedef struct {
-    char *name;
-    char *value;
-} DefineEntry;
 
-typedef struct {
-    DefineEntry *items;
-    size_t count;
-    size_t cap;
-} DefineList;
-
-typedef struct {
-    char **paths;
-    size_t count;
-    size_t cap;
-} PathSet;
-
-typedef struct {
-    DefineList defines;
-    PathSet imported;
-    bool noffi;
-    bool stdlib;
-} Preprocessor;
-
-static char *xstrndup(const char *s, size_t n) {
-    char *out = (char *)malloc(n + 1);
-    if (!out) {
-        return NULL;
-    }
-    memcpy(out, s, n);
-    out[n] = '\0';
-    return out;
-}
-
-static bool is_identifier_char(char c) {
-    return c == '_' || isalnum((unsigned char)c);
-}
-
-static bool token_boundary(const char *start, const char *match, size_t match_len) {
-    if (match != start && is_identifier_char(*(match - 1))) {
-        return false;
-    }
-    const char *after = match + match_len;
-    if (*after && is_identifier_char(*after)) {
-        return false;
-    }
-    return true;
-}
 
 static void free_define_list(DefineList *list) {
     if (!list) {
@@ -281,146 +211,6 @@ static bool parse_directive_path(const char *line, const char *keyword, char **o
     }
     return false;
 }
-
-static str replace_text_token(const char *line, const char *token, const char *replacement) {
-    str result = str_create("");
-    if (!line || !token || !replacement) {
-        return result;
-    }
-    size_t token_len = strlen(token);
-    const char *cursor = line;
-    while (*cursor) {
-        const char *match = strstr(cursor, token);
-        if (!match) {
-            str_append(&result, cursor);
-            break;
-        }
-        size_t prefix_len = (size_t)(match - cursor);
-        if (prefix_len > 0) {
-            char *prefix = xstrndup(cursor, prefix_len);
-            if (prefix) {
-                str_append(&result, prefix);
-                free(prefix);
-            }
-        }
-        if (token_boundary(line, match, token_len)) {
-            str_append(&result, replacement);
-        } else {
-            str_append(&result, token);
-        }
-        cursor = match + token_len;
-    }
-    return result;
-}
-
-static str apply_defines(const Preprocessor *pp, const char *line) {
-    if (!pp || !line || pp->defines.count == 0) {
-        return str_create(line ? line : "");
-    }
-    str current = str_create(line);
-    for (size_t i = 0; i < pp->defines.count; i++) {
-        if (pp->defines.items[i].name[0] == '\0') {
-            continue;
-        }
-        str replaced = replace_text_token(cstr(&current), pp->defines.items[i].name,
-                                          pp->defines.items[i].value);
-        str_destroy(&current);
-        current = replaced;
-    }
-    return current;
-}
-
-static bool is_preceded_by_std(const char *match, const char *line) {
-    size_t prefix_len = 5;
-    if (match - line < (ptrdiff_t)prefix_len) {
-        return false;
-    }
-    return memcmp(match - prefix_len, "std::", prefix_len) == 0;
-}
-
-static str apply_stdlib(const char *line) {
-    load_std_function_list();
-    str current = str_create(line ? line : "");
-    for (size_t i = 0; i < STD_FUNCTION_COUNT; i++) {
-        const char *name = cstr(&STD_FUNCTION_NAMES[i]);
-        size_t name_len = strlen(name);
-        str next = str_create("");
-        const char *cursor = cstr(&current);
-        while (*cursor) {
-            const char *match = strstr(cursor, name);
-            if (!match) {
-                str_append(&next, cursor);
-                break;
-            }
-            if (!token_boundary(cursor, match, name_len)) {
-                size_t prefix_len = (size_t)(match - cursor + name_len);
-                char *prefix = xstrndup(cursor, prefix_len);
-                if (prefix) {
-                    str_append(&next, prefix);
-                    free(prefix);
-                }
-                cursor = match + name_len;
-                continue;
-            }
-            const char *after = match + name_len;
-            while (*after == ' ' || *after == '\t') {
-                after++;
-            }
-            if (*after != '(') {
-                size_t prefix_len = (size_t)(match - cursor + name_len);
-                char *prefix = xstrndup(cursor, prefix_len);
-                if (prefix) {
-                    str_append(&next, prefix);
-                    free(prefix);
-                }
-                cursor = match + name_len;
-                continue;
-            }
-            if (is_preceded_by_std(match, cstr(&current))) {
-                size_t prefix_len = (size_t)(match - cursor + name_len);
-                char *prefix = xstrndup(cursor, prefix_len);
-                if (prefix) {
-                    str_append(&next, prefix);
-                    free(prefix);
-                }
-                cursor = match + name_len;
-                continue;
-            }
-            size_t prefix_len = (size_t)(match - cursor);
-            if (prefix_len > 0) {
-                char *prefix = xstrndup(cursor, prefix_len);
-                if (prefix) {
-                    str_append(&next, prefix);
-                    free(prefix);
-                }
-            }
-            str_append(&next, "std::");
-            str_append(&next, name);
-            cursor = match + name_len;
-        }
-        str_destroy(&current);
-        current = next;
-    }
-    return current;
-}
-
-static bool contains_noffi(const char *line) {
-    return (strstr(line, "c::") != NULL) || (strstr(line, "ffi::") != NULL);
-}
-
-static str apply_noffi(const char *line) {
-    if (!line) {
-        return str_create("");
-    }
-    if (contains_noffi(line)) {
-        str out = str_create("// noffi disabled: ");
-        str_append(&out, line);
-        return out;
-    }
-    return str_create(line);
-}
-
-static str preprocess_file_internal(const char *file_path, const char *base_dir, Preprocessor *pp, bool import_only);
 
 static str extract_exported_declarations(const str *content) {
     str output = str_create("");
