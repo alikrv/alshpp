@@ -312,6 +312,7 @@ static str preprocess_file_internal(const char *file_path, const char *base_dir,
     }
 
     const char *cursor = cstr(&raw);
+    bool pending_main = false;
     while (*cursor) {
         const char *line_start = cursor;
         const char *newline = strchr(cursor, '\n');
@@ -322,6 +323,46 @@ static str preprocess_file_internal(const char *file_path, const char *base_dir,
         }
         cursor = newline ? newline + 1 : cursor + line_len;
         char *trimmed = trim_inplace(line_buf);
+
+        if (starts_with(trimmed, "@main")) {
+            pending_main = true;
+            free(line_buf);
+            continue;
+        }
+
+        if (pending_main) {
+            if (starts_with(trimmed, "function ")) {
+                const char *replacement = "main_function ";
+                size_t prefix_len = strlen("function ");
+                size_t replacement_len = strlen(replacement);
+                size_t rest_len = strlen(trimmed) - prefix_len + 1;
+                char *new_line = malloc(replacement_len + rest_len);
+                if (new_line) {
+                    memcpy(new_line, replacement, replacement_len);
+                    memcpy(new_line + replacement_len, trimmed + prefix_len, rest_len);
+                    free(line_buf);
+                    line_buf = new_line;
+                    trimmed = trim_inplace(line_buf);
+                }
+                pending_main = false;
+            } else if (starts_with(trimmed, "fn ")) {
+                const char *replacement = "main_function ";
+                size_t prefix_len = strlen("fn ");
+                size_t replacement_len = strlen(replacement);
+                size_t rest_len = strlen(trimmed) - prefix_len + 1;
+                char *new_line = malloc(replacement_len + rest_len);
+                if (new_line) {
+                    memcpy(new_line, replacement, replacement_len);
+                    memcpy(new_line + replacement_len, trimmed + prefix_len, rest_len);
+                    free(line_buf);
+                    line_buf = new_line;
+                    trimmed = trim_inplace(line_buf);
+                }
+                pending_main = false;
+            } else if (trimmed[0] != '\0' && trimmed[0] != '#') {
+                pending_main = false;
+            }
+        }
 
         if (starts_with(trimmed, "@define")) {
             const char *arg = trimmed + strlen("@define");
@@ -412,7 +453,7 @@ static str preprocess_file_internal(const char *file_path, const char *base_dir,
             continue;
         }
 
-        if (starts_with(trimmed, "@main") || starts_with(trimmed, "@justrunit") || starts_with(trimmed, "@justcarryon")) {
+        if (starts_with(trimmed, "@justrunit") || starts_with(trimmed, "@justcarryon")) {
             free(line_buf);
             continue;
         }

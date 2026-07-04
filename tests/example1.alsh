@@ -4,11 +4,18 @@
 
 @stdlib
 
+function this_is_not_the_main_function(int num) int {
+    let duplicated = ($num * 2)
+    return $duplicated
+}
+
 @main
 function this_is_the_main_function() int {
     c::puts("Hello world from C")
     println("Hello world from the standard library")
     say_hello
+
+    this_is_not_the_main_function(2)
 
     defined_one
     return 0
